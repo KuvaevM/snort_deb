@@ -1,0 +1,134 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Update and Build
+
+# Controls when the workflow will run
+on:
+  release:
+    types: [published]
+    repositories:
+      - snort3/snort3
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get latest version
+        id: get_latest_version
+        run: |
+          TAG=$(curl -s https://api.github.com/repos/snort3/snort3/releases/latest | jq -r '.tag_name')
+          echo "Latest version is $TAG"
+          echo "::set-output name=tag::$TAG"
+
+      - name: Download tarball
+        run: |
+          cd
+          TAG=$TAG
+          wget https://api.github.com/repos/snort3/snort3/tarball/$TAG -O snort3.tar.gz
+
+      - name: Extract tarball
+        run: |
+          cd
+          mkdir -p "snort3-$TAG"
+          tar -zxvf snort3.tar.gz -C "snort3-$TAG"
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install build-essential libpcap-dev libpcre3-dev libnet1-dev zlib1g-dev luajit hwloc libdnet-dev libdumbnet-dev bison flex liblzma-dev openssl libssl-dev pkg-config libhwloc-dev cmake cpputest libsqlite3-dev uuid-dev libcmocka-dev libnetfilter-queue-dev libmnl-dev autotools-dev libluajit-5.1-dev libunwind-dev libfl-dev -y
+
+      - name: Download and install libdaq
+        run: |
+          cd
+          DAQTAG=$(curl -s https://api.github.com/repos/snort3/libdaq/releases/latest | jq -r '.tag_name')
+          echo "Latest version is $DAQTAG"
+          echo "::set-output name=tag::$DAQTAG"
+          wget https://api.github.com/repos/snort3/libdaq/tarball/$DAQTAG -O libdaq.tar.gz
+          mkdir -p "libdaq-$DAQTAG"
+          tar -zxvf libdaq.tar.gz -C "libdaq-$DAQTAG"
+          ls -a
+          cd libdaq-$DAQTAG/snort3*
+          ls -a
+          sudo ./bootstrap
+          sudo ./configure
+          sudo make
+          sudo make install
+
+      - name: Download and install gperftools
+        run: |
+          cd
+          wget https://github.com/gperftools/gperftools/releases/download/gperftools-2.9.1/gperftools-2.9.1.tar.gz
+          tar -zxvf gperftools-2.9.1.tar.gz
+          cd gperftools-2.9.1
+          sudo ./configure
+          sudo make
+          sudo make install
+
+      - name: Download and install Snort
+        run: |
+          cd
+          cd snort3-$TAG/snort3*
+          ./configure_cmake.sh --prefix=/usr/local --enable-tcmalloc
+          cd build
+          sudo make
+          sudo make install
+          sudo ldconfig
+
+      - name: Install dpkg
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev
+
+      - name: Build and publish deb package
+        run: |
+          TAG=$TAG
+          mkdir -p snort_deb
+          echo "Latest version is $TAG"
+          for dir in /usr/local/lib/daq /usr/local/share/doc/snort /usr/local/lib/snort /usr/local/etc/snort /usr/local/include/snort; do
+            if [ -d "$dir" ]; then
+            mkdir -p snort_deb/${dir#/}
+            cp -r $dir/* snort_deb/${dir#/}/
+            fi
+          done
+          mkdir -p snort_deb/DEBIAN
+          touch snort_deb/DEBIAN/control
+          cat > snort_deb/DEBIAN/control <<EOF
+          Package: snort-custom
+          Version: 1.0
+          Architecture: all
+          Maintainer: Your Name <shlyabom@gmail.com>
+          Description: Snort custom package
+          EOF
+          cd snort_deb
+          dpkg-deb --build . "snort-custom.deb"
+          ls -a
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_latest_version.outputs.tag }}
+          release_name: Release ${{ steps.get_latest_version.outputs.tag }}
+          body: Release ${{ steps.get_latest_version.outputs.tag }}
+          draft: false
+          prerelease: false
+
+      - name: Upload File to Release
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./snort_deb/snort-custom.deb
+          asset_name: snort-custom.deb
+          asset_content_type: application/vnd.debian.binary-package
