@@ -128,7 +128,14 @@ jobs:
           Architecture: all
           Maintainer: Your Name <shlyabom@gmail.com>
           Description: Snort custom package
+          Depends: gperftools (>= 2.9.1)
           EOF
+          touch snort_deb/DEBIAN/postinst
+          cat > snort_deb/DEBIAN/postinst <<EOF
+          #!/bin/sh
+          ldconfig
+          EOF
+          chmod +x snort_deb/DEBIAN/postinst
           cd snort_deb
           dpkg-deb --build . "snort-custom.deb"
           ls -a
