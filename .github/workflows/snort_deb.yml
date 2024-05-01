@@ -32,14 +32,15 @@ jobs:
       - name: Download tarball
         run: |
           cd
-          TAG=$TAG
+          TAG=${{ steps.get_latest_version.outputs.tag }}
+          echo "https://api.github.com/repos/snort3/snort3/tarball/$TAG"
           wget https://api.github.com/repos/snort3/snort3/tarball/$TAG -O snort3.tar.gz
 
       - name: Extract tarball
         run: |
           cd
-          mkdir -p "snort3-$TAG"
-          tar -zxvf snort3.tar.gz -C "snort3-$TAG"
+          mkdir -p "snort3"
+          tar -zxvf snort3.tar.gz -C "snort3"
 
       - name: Install dependencies
         run: |
@@ -76,7 +77,7 @@ jobs:
       - name: Download and install Snort
         run: |
           cd
-          cd snort3-$TAG/snort3*
+          cd snort3/snort3*
           ./configure_cmake.sh --prefix=/usr/local --enable-tcmalloc
           cd build
           sudo make
@@ -88,20 +89,42 @@ jobs:
 
       - name: Build and publish deb package
         run: |
-          TAG=$TAG
+          TAG=${{ steps.get_latest_version.outputs.tag }}
+          DIRN=$(ls ~/snort3/)
           mkdir -p snort_deb
-          echo "Latest version is $TAG"
-          for dir in /usr/local/lib/daq /usr/local/share/doc/snort /usr/local/lib/snort /usr/local/etc/snort /usr/local/include/snort; do
+          rsync -av --files-from=/home/runner/snort3/$DIRN/build/install_manifest.txt / snort_deb
+          
+          for dir in /usr/local/lib/daq; do
             if [ -d "$dir" ]; then
-            mkdir -p snort_deb/${dir#/}
-            cp -r $dir/* snort_deb/${dir#/}/
+                mkdir -p snort_deb/${dir#/}
+                cp -r $dir/* snort_deb/${dir#/}/
             fi
+          done
+
+          for file in /usr/local/bin/snort2lua /usr/local/bin/snort /usr/local/bin/daqtest-static /usr/local/bin/daqtest; do
+              mkdir -p snort_deb/usr/local/bin
+              cp $file snort_deb/usr/local/bin/
+          done
+
+          for file in /usr/local/lib/libdaq_static_dump.a /usr/local/lib/libdaq_static_bpf.la /usr/local/lib/libdaq.so /usr/local/lib/libdaq_static_afpacket.a /usr/local/lib/libdaq.la /usr/local/lib/libdaq.so.3.0.0 /usr/local/lib/libdaq_static_trace.la /usr/local/lib/libdaq_static_trace.a /usr/local/lib/libdaq_static_savefile.la /usr/local/lib/libdaq_static_gwlb.a /usr/local/lib/libdaq_static_dump.la /usr/local/lib/libdaq_static_fst.la /usr/local/lib/libdaq_static_afpacket.la /usr/local/lib/libdaq.so.3 /usr/local/lib/libdaq_static_savefile.a /usr/local/lib/libdaq_static_gwlb.la /usr/local/lib/libdaq_static_nfq.a /usr/local/lib/libdaq_static_fst.a /usr/local/lib/libdaq_static_pcap.a /usr/local/lib/libdaq.a /usr/local/lib/libdaq_static_nfq.la /usr/local/lib/libdaq_static_bpf.a /usr/local/lib/libdaq_static_pcap.la; do
+              mkdir -p snort_deb/usr/local/lib
+              cp $file snort_deb/usr/local/lib/
+          done
+
+          for file in /usr/local/lib/pkgconfig/snort.pc /usr/local/lib/pkgconfig/libdaq_static_dump.pc /usr/local/lib/pkgconfig/libdaq_static_trace.pc /usr/local/lib/pkgconfig/libdaq_static_bpf.pc /usr/local/lib/pkgconfig/libdaq_static_gwlb.pc /usr/local/lib/pkgconfig/libdaq_static_afpacket.pc /usr/local/lib/pkgconfig/libdaq_static_pcap.pc /usr/local/lib/pkgconfig/libdaq_static_fst.pc /usr/local/lib/pkgconfig/libdaq_static_nfq.pc /usr/local/lib/pkgconfig/libdaq.pc /usr/local/lib/pkgconfig/libdaq_static_savefile.pc; do
+              mkdir -p snort_deb/usr/local/lib/pkgconfig
+              cp $file snort_deb/usr/local/lib/pkgconfig/
+          done
+
+          for file in /usr/local/include/daq_common.h /usr/local/include/daq_dlt.h /usr/local/include/daq_version.h /usr/local/include/daq.h /usr/local/include/daq_module_api.h; do
+              mkdir -p snort_deb/usr/local/include
+              cp $file snort_deb/usr/local/include/
           done
           mkdir -p snort_deb/DEBIAN
           touch snort_deb/DEBIAN/control
           cat > snort_deb/DEBIAN/control <<EOF
           Package: snort-custom
-          Version: 1.0
+          Version: $TAG
           Architecture: all
           Maintainer: Your Name <shlyabom@gmail.com>
           Description: Snort custom package
