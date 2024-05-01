@@ -128,7 +128,6 @@ jobs:
           Architecture: all
           Maintainer: Your Name <shlyabom@gmail.com>
           Description: Snort custom package
-          Depends: gperftools (>= 2.9.1)
           EOF
           touch snort_deb/DEBIAN/postinst
           cat > snort_deb/DEBIAN/postinst <<EOF
