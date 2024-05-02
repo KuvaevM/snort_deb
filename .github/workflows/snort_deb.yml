@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install build-essential libpcap-dev libpcre3-dev libnet1-dev zlib1g-dev luajit hwloc libdnet-dev libdumbnet-dev bison flex liblzma-dev openssl libssl-dev pkg-config libhwloc-dev cmake cpputest libsqlite3-dev uuid-dev libcmocka-dev libnetfilter-queue-dev libmnl-dev autotools-dev libluajit-5.1-dev libunwind-dev libfl-dev -y
+          sudo apt install build-essential libpcap-dev libpcre3-dev libnet1-dev zlib1g-dev luajit hwloc libdnet-dev libdumbnet-dev bison flex liblzma-dev openssl libssl-dev pkg-config libhwloc-dev cmake cpputest libsqlite3-dev uuid-dev libcmocka-dev libnetfilter-queue-dev libmnl-dev autotools-dev libluajit-5.1-dev libunwind-dev libfl-dev google-perftools -y
 
       - name: Download and install libdaq
         run: |
@@ -60,16 +60,6 @@ jobs:
           cd libdaq-$DAQTAG/snort3*
           ls -a
           sudo ./bootstrap
-          sudo ./configure
-          sudo make
-          sudo make install
-
-      - name: Download and install gperftools
-        run: |
-          cd
-          wget https://github.com/gperftools/gperftools/releases/download/gperftools-2.9.1/gperftools-2.9.1.tar.gz
-          tar -zxvf gperftools-2.9.1.tar.gz
-          cd gperftools-2.9.1
           sudo ./configure
           sudo make
           sudo make install
@@ -128,6 +118,7 @@ jobs:
           Architecture: all
           Maintainer: Your Name <shlyabom@gmail.com>
           Description: Snort custom package
+          Depends: google-perftools, libdumbnet-dev, hwloc, luajit, libpcap-dev, libmnl-dev, libunwind-dev, libhwloc-dev
           EOF
           touch snort_deb/DEBIAN/postinst
           cat > snort_deb/DEBIAN/postinst <<EOF
